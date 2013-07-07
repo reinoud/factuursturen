@@ -16,6 +16,7 @@ sdist
 develop-eggs
 .installed.cfg
 lib
+MANIFEST
 lib64
 
 # Installer logs
@@ -33,3 +34,6 @@ nosetests.xml
 .mr.developer.cfg
 .project
 .pydevproject
+
+# pycharm
+.idea
