@@ -4,13 +4,17 @@ a class to access the REST API of the website www.factuursturen.nl
 
 """
 import collections
+import ConfigParser
+from datetime import datetime, date
 import re
 import requests
+from os.path import expanduser
+import copy
 
 __author__ = 'Reinoud van Leeuwen'
 __copyright__ = "Copyright 2013, Reinoud van Leeuwen"
 __license__ = "BSD"
-__version__ = "0.1"
+__version__ = "0.2"
 __maintainer__ = "Reinoud van Leeuwen"
 __email__ = "reinoud.v@n.leeuwen.net"
 __status__ = "Development"
@@ -44,6 +48,15 @@ class FactuursturenWrongPutvalue(FactuursturenError):
 class FactuursturenEmptyResult(FactuursturenError):
     pass
 
+class FactuursturenNoAuth(FactuursturenError):
+    pass
+
+class FactuursturenConversionError(FactuursturenError):
+    pass
+
+class FactuursturenWrongCall(FactuursturenError):
+    pass
+
 
 class Client:
     """
@@ -51,16 +64,33 @@ class Client:
     """
 
     def __init__(self,
-                 apikey,
-                 username,
+                 apikey='',
+                 username='',
+                 configsection='default',
                  host='www.factuursturen.nl',
                  protocol='https',
                  apipath='/api',
                  version='v0'):
         self._url = protocol + '://' + host + apipath + '/' + version + '/'
-        self._apikey = apikey
-        self._username = username
+
+        # try to read auth details from file when not passed
+        if (not apikey) and (not username):
+            try:
+                config = ConfigParser.RawConfigParser()
+                config.read(['.factuursturen_rc', expanduser('~/.factuursturen_rc')])
+                self._apikey = config.get(configsection, 'apikey')
+                self._username = config.get(configsection, 'username')
+            except ConfigParser.NoSectionError:
+                raise FactuursturenNoAuth ('key and username not given, nor found in .factuursturen_rc or ~/.factuursturen_rc')
+            except ConfigParser.NoOptionError:
+                raise FactuursturenNoAuth ('no complete auth found')
+        else:
+            self._apikey = apikey
+            self._username = username
+
+        # remaining allowed calls to API
         self._remaining = None
+        self._lastresponse = None
 
         self._headers = {'content-type': 'application/json',
                          'accept': 'application/json'}
@@ -85,53 +115,133 @@ class Client:
                           'invoices',
                           'invoices_saved',
                           'invoices_repeated']
-        # booleanfields will have to be converted from and to strings
-        self._booleanfields = {'clients': ['showcontact',
-                                           'tax_shifted',
-                                           'notes_on_invoice',
-                                           'active'],
-                               'invoices': ['collection',
-                                            'overwrite_if_exist'],
-                               'taxes': ['default']}
-        # TODO: when username and apikey are not present, try to read ~/.factuursturen_rc
+        self._convertablefields = {
+            'clients' : {'clientnr': 'int',
+                         'showcontact': 'bool',
+                         'tax_shifted': 'bool',
+                         'lastinvoice': 'date',
+                         'top': 'int',
+                         'stddiscount': 'int',
+                         'notes_on_invoice': 'bool',
+                         'active': 'bool',
+                         'default_email': 'int',
+                         'timestamp': 'date'},
+            'products': {'id': 'int',
+                         'price': 'float',
+                         'taxes': 'int'},
+            'invoices': {'profile': 'int',
+                         'discount': 'float',
+                         'paymentperiod': 'int',
+                         'collection': 'bool',
+                         'tax': 'float',
+                         'totalintax': 'float',
+                         'sent': 'date',
+                         'uncollectible': 'date',
+                         'lastreminder': 'date',
+                         'open': 'float',
+                         'paiddate': 'float',
+                         'duedate': 'date',
+                         'overwrite_if_exist': 'bool',
+                         'initialdate': 'date',
+                         'finalsenddate': 'date'},
+            'invoices_payment': {'date': 'date'},
+            'invoices_saved': {'id': 'int',
+                               'profile': 'int',
+                               'discount': 'float',
+                               'paymentperiod': 'int',
+                               'totaldiscount': 'float',
+                               'totalintax': 'float',
+                               'clientnr': 'int'},
+            'invoices_repeated': {'id': 'int',
+                                  'profile': 'int',
+                                  'discount': 'float',
+                                  'paymentperiod': 'int',
+                                  'datesaved': 'date',
+                                  'totalintax': 'float',
+                                  'initialdate': 'date',
+                                  'nextsenddate': 'date',
+                                  'finalsenddate': 'date',
+                                  'clientnr': 'int'},
+            'profiles': {'id': 'int'},
+            'countrylist' : {'id': 'int'},
+            'taxes': {'percentage': 'int',
+                      'default': 'bool'}
+        }
 
-    # conversions
-    # The API expects (and returns) booleans as lowercase
-    # strings ('true', 'false'). Convert this to be true
-    # booleans, which is easier to work with in Python
+        # keep a list of which functions can be used to convert the fields
+        # from and to a string
+        self._convertfunctions = {'fromstring': {'int': self._string2int,
+                                                 'bool': self._string2bool,
+                                                 'float': self._string2float,
+                                                 'date': self._string2date},
+                                  'tostring': {'int': self._int2string,
+                                               'bool': self._bool2string,
+                                               'float': self._float2string,
+                                               'date': self._date2string}}
 
-    # single value
-    def _singlestr2bool(self, value):
-        """Convert string 'True' to a decent boolean True """
-        return value.lower() in ("yes", "true", "t", "1")
+    # single value conversionfunctions
+    def _string2int(self, string):
+        try:
+            return int(string)
+        except ValueError:
+            raise FactuursturenConversionError('cannot convert {} to int'.format(string))
 
-    # fields in a dict
-    def _booleans_to_strings(self, singledict, function):
-        """convert the booleans to strings in a dict """
-        if function in self._booleanfields.keys():
-            for key in self._booleanfields[function]:
-                singledict[key] = str(singledict[key]).lower()
-        return singledict
+    def _string2bool(self, string):
+        return string.lower() in ("yes", "true", "t", "1")
 
-    def _boolean_strings_to_real_booleans(self, singledict, function):
-        """convert the boolean string fields in a dict to true booleans"""
-        if function in self._booleanfields.keys():
-            for key in self._booleanfields[function]:
-                if key in singledict:
-                    singledict[key] = self._singlestr2bool(singledict[key])
-        return singledict
+    def _string2float(self, string):
+        try:
+            return float(string)
+        except ValueError:
+            raise FactuursturenConversionError('cannot convert {} to float'.format(string))
 
-    # list of dicts (when put or get is called without ID)
-    def _booleans_to_strings_in_list(self, alist, function):
-        """convert each element of the list"""
+    def _string2date(self, string):
+        try:
+            return datetime.strptime(string, '%Y-%m-%d')
+        except ValueError:
+            raise FactuursturenConversionError('cannot convert {} to date'.format(string))
+
+    def _int2string(self, number):
+        return str(number)
+
+    def _bool2string(self, booleanvalue):
+        return str(booleanvalue).lower()
+
+    def _float2string(self, number):
+        return str(number)
+
+    def _date2string(self, date):
+        return date.strftime("%Y-%m-%d")
+
+    def _convertstringfields_in_dict(self, adict, function, direction):
+        """convert fields of a single dict either from or to strings
+        :param adict:
+        :param function:
+        :param direction:
+        """
+        if direction not in self._convertfunctions:
+            raise FactuursturenWrongCall ('_convertstringfields_in_dict called with {}'.format(direction))
+        if function in self._convertablefields:
+            for key, value in adict.iteritems():
+                if key in self._convertablefields[function]:
+                    # note: target is something like 'int'. Depending
+                    # on conversion direction, this is the source or the target
+                    target = self._convertablefields[function][key]
+                    conversion_function = self._convertfunctions[direction][target]
+                    adict[key] = conversion_function(value)
+        return adict
+
+    def _convertstringfields_in_list_of_dicts(self, alist, function, direction):
+        """convert each dict in the list
+
+        :param alist:
+        :param function:
+        :param direction:
+        """
+        if direction not in self._convertfunctions:
+            raise FactuursturenWrongCall ('_convertstringfields_in_list_of_dicts called with {}'.format(direction))
         for index, entry in enumerate(alist):
-            alist[index] = self._booleans_to_strings(alist[index], function)
-        return alist
-
-    def _boolean_strings_to_real_booleans_in_list(self, alist, function):
-        """convert each element of the list"""
-        for index, entry in enumerate(alist):
-            alist[index] = self._boolean_strings_to_real_booleans(alist[index], function)
+            alist[index] = self._convertstringfields_in_dict(alist[index], function, direction)
         return alist
 
     def _flatten(self, adict, parent_key=''):
@@ -149,6 +259,9 @@ class Client:
          'lines[line2][amount]': 2,
          'lines[line2][tax]': 21
         }
+
+        :param adict:
+        :param parent_key:
         """
         items = []
         for k, v in adict.items():
@@ -165,6 +278,8 @@ class Client:
         replace keys like 'lines[line0][amount_desc]'
         with 'lines[0][amount_desc]'
         (keeping the same value)
+
+        :param adict:
         """
         for key, val in adict.items():
             fields = re.split('\]\[', key)
@@ -176,31 +291,47 @@ class Client:
                 del adict[key]
         return adict
 
-    def _translated(self, adict):
+    def _prepare_for_send(self, adict, function):
         """fix dict so it can be posted
+
+        :param adict:
+        :param function:
         """
-        return self._fixkeynames(self._flatten(adict))
+        adict = self._convertstringfields_in_dict(adict, function, 'tostring')
+        adict = self._flatten(adict)
+        adict = self._fixkeynames(adict)
+        return adict
 
     @property
     def remaining(self):
         """return remaining allowed API calls (for this hour)"""
         return self._remaining
 
+    @property
+    def ok(self):
+        """return status of last call"""
+        return self._lastresponse
+
     def post(self, function, objData):
         """Generic wrapper for all POSTable functions
 
         errors from server during post (like wrong values) are propagated to the exceptionclass
+        :param function:
+        :param objData_local:
         """
         fullUrl = self._url + function
+        objData_local = copy.deepcopy(objData)
         if function not in self._posters:
             raise FactuursturenPostError("{function} not in available POSTable functions".format(function=function))
 
-        if isinstance(objData, dict):
-            objData = self._translated(objData)
+        if isinstance(objData_local, dict):
+            objData_local = self._prepare_for_send(objData_local, function)
 
         response = requests.post(fullUrl,
-                                 data=objData,
+                                 data=objData_local,
                                  auth=(self._username, self._apikey))
+        self._lastresponse = response.ok
+
         if response.ok:
             self._remaining = int(response.headers['x-ratelimit-remaining'])
             return response.content
@@ -211,15 +342,23 @@ class Client:
         """Generic wrapper for all PUTable functions
 
         errors from server during post (like wrong values) are propagated to the exceptionclass
+        :param function:
+        :param objId:
+        :param objData:
         """
         fullUrl = self._url + function + '/{objId}'.format(objId=objId)
 
         if function not in self._putters:
             raise FactuursturenPostError("{function} not in available PUTable functions".format(function=function))
 
-        response = requests.post(fullUrl,
+        if isinstance(objData, dict):
+            objData = self._prepare_for_send(objData, function)
+
+        response = requests.put(fullUrl,
                                  data=objData,
                                  auth=(self._username, self._apikey))
+        self._lastresponse = response.ok
+
         if response.ok:
             self._remaining = int(response.headers['x-ratelimit-remaining'])
             return
@@ -230,14 +369,18 @@ class Client:
         """Generic wrapper for all DELETEable functions
 
         errors from server during post (like wrong values) are propagated to the exceptionclass
+        :param function:
+        :param objId:
         """
         fullUrl = self._url + function + '/{objId}'.format(objId=objId)
 
         if function not in self._deleters:
             raise FactuursturenPostError("{function} not in available DELETEable functions".format(function=function))
 
-        response = requests.post(fullUrl,
+        response = requests.delete(fullUrl,
                                  auth=(self._username, self._apikey))
+        self._lastresponse = response.ok
+
         if response.ok:
             self._remaining = int(response.headers['x-ratelimit-remaining'])
         else:
@@ -245,7 +388,11 @@ class Client:
 
 
     def get(self, function, objId=None):
-        """Generic wrapper for all GETtable functions"""
+        """Generic wrapper for all GETtable functions
+
+        :param function:
+        :param objId:
+        """
 
         # TODO: some errorchecking:
         # - on function
@@ -265,6 +412,7 @@ class Client:
         response = requests.get(fullUrl,
                                 auth=(self._username, self._apikey),
                                 headers=self._headers)
+        self._lastresponse = response.ok
 
         # when one record is returned, acces it normally so
         # return the single element of the dict that is called 'client'
@@ -276,9 +424,10 @@ class Client:
             try:
                 raw_structure = response.json()
                 if isinstance(raw_structure, dict):
-                    retval = self._boolean_strings_to_real_booleans(raw_structure[singlefunction], function)
+
+                    retval = self._convertstringfields_in_dict(raw_structure[singlefunction], function, 'fromstring')
                 else:
-                    retval = self._boolean_strings_to_real_booleans_in_list(raw_structure, function)
+                    retval = self._convertstringfields_in_list_of_dicts(raw_structure, function, 'fromstring')
             except FactuursturenError:
                 retval = response.content
             return retval
