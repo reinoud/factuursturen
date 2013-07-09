@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-#from distutils.core import setup
-from setuptools import setup
+from distutils.core import setup
+#from setuptools import setup
 
 PROJECT = 'factuursturen'
 VERSION = '0.2'
@@ -15,9 +15,9 @@ setup(
     version=VERSION,
     author=AUTHOR,
     author_email=AUTHOR_EMAIL,
-    packages=['factuursturen', 'test'],
+    packages=['factuursturen', 'factuursturen.test'],
     url=URL,
-    test_suite = "tests.test_client",
+    test_suite = "facuursturen.test.test_client",
     license=open('LICENSE').read(),
     description=DESC,
     long_description=open('README.txt').read(),

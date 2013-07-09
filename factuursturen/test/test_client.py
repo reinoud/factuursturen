@@ -5,7 +5,7 @@ from os.path import expanduser
 from datetime import datetime
 
 
-class TestClient(TestCase):
+class test_client(TestCase):
     def setUp(self):
         try:
             config = ConfigParser.RawConfigParser()
