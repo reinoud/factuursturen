@@ -237,7 +237,10 @@ class test_client(TestCase):
                         u'name': u'Test produkt via API',
                         u'price': 123.450,
                         u'taxes': 21}
-        added_id = int(fact.post('products', test_product))
+        try:
+            added_id = int(fact.post('products', test_product))
+        except factuursturen.FactuursturenWrongPostvalue:
+            pytest.skip("skipping online tests, wrong authentication in  ~/.factuursturen_rc")
         self.assertTrue(fact.ok)
 
         try:

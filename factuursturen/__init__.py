@@ -144,6 +144,16 @@ class Client:
                  protocol='https',
                  apipath='/api',
                  version='v0'):
+        """
+        initialize object
+
+        When apikey and username are not present, look for INI-style file .factuursturen_rc
+        in current directory and homedirectory to find those values there
+
+        :param apikey: APIkey (string) as generated online on the website http://www.factuursturen.nl
+        :param username: accountname for the website
+        :param configsection: section in file ~/.factuursturen_rc where apikey and username should be present
+        """
         self._url = protocol + '://' + host + apipath + '/' + version + '/'
 
         # try to read auth details from file when not passed
@@ -225,9 +235,13 @@ class Client:
 
     def _convertstringfields_in_dict(self, adict, function, direction):
         """convert fields of a single dict either from or to strings
-        :param adict:
-        :param function:
-        :param direction:
+
+        fieldnames to convert are read from CONVERTIBLEFIELDS dict, which
+        is in essence a datadictionary for this API
+
+        :param adict: dictionary to convert
+        :param function: callable function in the API ('clients', 'products' etc)
+        :param direction: either 'tostring' or 'fromstring'
         """
         if direction not in self._convertfunctions:
             raise FactuursturenWrongCall ('_convertstringfields_in_dict called with {}'.format(direction))
@@ -244,9 +258,11 @@ class Client:
     def _convertstringfields_in_list_of_dicts(self, alist, function, direction):
         """convert each dict in the list
 
-        :param alist:
-        :param function:
-        :param direction:
+        Basically, a loop over the function _convertstringfields_in_dict
+
+        :param alist: a list of dicts
+        :param function: callable function in the API ('clients', 'products' etc)
+        :param direction: either 'tostring' or 'fromstring'
         """
         if direction not in self._convertfunctions:
             raise FactuursturenWrongCall ('_convertstringfields_in_list_of_dicts called with {}'.format(direction))
@@ -256,6 +272,8 @@ class Client:
 
     def _flatten(self, adict, parent_key=''):
         """flatten a nested dict
+
+        The API expects nested dicts to be flattened when posting
 
         {'lines': {'line1': {'amount': 1,
                              'tax': 21},
@@ -270,8 +288,8 @@ class Client:
          'lines[line2][tax]': 21
         }
 
-        :param adict:
-        :param parent_key:
+        :param adict: a nested dict
+        :param parent_key: should be empty, used for recursion
         """
         items = []
         for k, v in adict.items():
@@ -289,7 +307,7 @@ class Client:
         with 'lines[0][amount_desc]'
         (keeping the same value)
 
-        :param adict:
+        :param adict: dictionary to be changed
         """
         for key, val in adict.items():
             fields = re.split('\]\[', key)
@@ -304,8 +322,8 @@ class Client:
     def _prepare_for_send(self, adict, function):
         """fix dict so it can be posted
 
-        :param adict:
-        :param function:
+        :param adict: dictionary to be posted
+        :param function: callable function from the API ('clients', 'products', etc)
         """
         adict = self._convertstringfields_in_dict(adict, function, 'tostring')
         adict = self._flatten(adict)
@@ -326,8 +344,9 @@ class Client:
         """Generic wrapper for all POSTable functions
 
         errors from server during post (like wrong values) are propagated to the exceptionclass
-        :param function:
-        :param objData_local:
+
+        :param function: callabe function from the API ('clients', 'products', etc)
+        :param objData: data to be posted
         """
         fullUrl = self._url + function
         objData_local = copy.deepcopy(objData)
@@ -352,9 +371,10 @@ class Client:
         """Generic wrapper for all PUTable functions
 
         errors from server during post (like wrong values) are propagated to the exceptionclass
-        :param function:
-        :param objId:
-        :param objData:
+
+        :param function: callabe function from the API ('clients', 'products', etc)
+        :param objId: id of object to be put (usually retrieved from the API)
+        :param objData: data to be posted. All required fields should be present, or the API will not accept the changes
         """
         fullUrl = self._url + function + '/{objId}'.format(objId=objId)
 
@@ -379,8 +399,8 @@ class Client:
         """Generic wrapper for all DELETEable functions
 
         errors from server during post (like wrong values) are propagated to the exceptionclass
-        :param function:
-        :param objId:
+        :param function: callabe function from the API ('clients', 'products', etc)
+        :param objId: id of object to be put (usually retrieved from the API)
         """
         fullUrl = self._url + function + '/{objId}'.format(objId=objId)
 
@@ -400,8 +420,11 @@ class Client:
     def get(self, function, objId=None):
         """Generic wrapper for all GETtable functions
 
-        :param function:
-        :param objId:
+        when no objId is passed, retrieve all objects (in a list of dicts)
+        when objId is passed, only retrieve a single object (in a single dict)
+
+        :param function: callabe function from the API ('clients', 'products', etc)
+        :param objId: id of object to be put (usually retrieved from the API)
         """
 
         # TODO: some errorchecking:
