@@ -78,6 +78,7 @@ class test_client(TestCase):
         test_input = "2013-12-32"
         try:
             test_output = fact._string2date(test_input)
+            self.fail('2013-12-32 should throw exception when converted to')
         except factuursturen.FactuursturenConversionError:
             pass
 
@@ -90,6 +91,12 @@ class test_client(TestCase):
         test_output = fact._int2string(test_input)
         self.assertEqual(test_output, '123')
         self.assertIsInstance(test_output, str)
+        test_input = 123.45
+        try:
+            test_output = fact._int2string(test_input)
+            self.fail('123.45 should throw exception when converted from int to string')
+        except factuursturen.FactuursturenConversionError:
+            pass
 
     def test__bool2string(self):
         apikey = 'foo'
@@ -225,7 +232,7 @@ class test_client(TestCase):
                         u'name': u'Test produkt via API',
                         u'price': 123.450,
                         u'taxes': 21}
-        added_id = fact.post('products', test_product)
+        added_id = int(fact.post('products', test_product))
         self.assertTrue(fact.ok)
 
         try:
@@ -234,7 +241,7 @@ class test_client(TestCase):
         except factuursturen.FactuursturenPostError:
             pass
 
-        test_product[u'id'] = int(added_id)
+        test_product[u'id'] = added_id
         test_returned_product = fact.get('products', added_id)
         self.assertEqual(test_product, test_returned_product)
 
@@ -249,7 +256,7 @@ class test_client(TestCase):
 
         try:
             test_returned_product = fact.get('products', added_id)
-            self.fail('an exceeption should be raised when trying to get a deleted object')
+            self.fail('an exception should be raised when trying to get a deleted object')
         except factuursturen.FactuursturenEmptyResult:
             self.assertFalse(fact.ok)
 

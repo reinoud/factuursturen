@@ -19,6 +19,81 @@ __maintainer__ = "Reinoud van Leeuwen"
 __email__ = "reinoud.v@n.leeuwen.net"
 __status__ = "Development"
 
+CONVERTABLEFIELDS = {
+    'clients' : {'clientnr': 'int',
+                 'showcontact': 'bool',
+                 'tax_shifted': 'bool',
+                 'lastinvoice': 'date',
+                 'top': 'int',
+                 'stddiscount': 'int',
+                 'notes_on_invoice': 'bool',
+                 'active': 'bool',
+                 'default_email': 'int',
+                 'timestamp': 'date'},
+    'products': {'id': 'int',
+                 'price': 'float',
+                 'taxes': 'int'},
+    'invoices': {'profile': 'int',
+                 'discount': 'float',
+                 'paymentperiod': 'int',
+                 'collection': 'bool',
+                 'tax': 'float',
+                 'totalintax': 'float',
+                 'sent': 'date',
+                 'uncollectible': 'date',
+                 'lastreminder': 'date',
+                 'open': 'float',
+                 'paiddate': 'float',
+                 'duedate': 'date',
+                 'overwrite_if_exist': 'bool',
+                 'initialdate': 'date',
+                 'finalsenddate': 'date'},
+    'invoices_payment': {'date': 'date'},
+    'invoices_saved': {'id': 'int',
+                       'profile': 'int',
+                       'discount': 'float',
+                       'paymentperiod': 'int',
+                       'totaldiscount': 'float',
+                       'totalintax': 'float',
+                       'clientnr': 'int'},
+    'invoices_repeated': {'id': 'int',
+                          'profile': 'int',
+                          'discount': 'float',
+                          'paymentperiod': 'int',
+                          'datesaved': 'date',
+                          'totalintax': 'float',
+                          'initialdate': 'date',
+                          'nextsenddate': 'date',
+                          'finalsenddate': 'date',
+                          'clientnr': 'int'},
+    'profiles': {'id': 'int'},
+    'countrylist' : {'id': 'int'},
+    'taxes': {'percentage': 'int',
+              'default': 'bool'}
+}
+
+API = {'getters' : ['clients',
+                    'products',
+                    'invoices',
+                    'invoices_saved',
+                    'invoices_repeated',
+                    'profiles',
+                    'balance',
+                    'countrylist',
+                    'taxes'],
+       'single_getters' : ['invoices_pdf'],
+       'posters' : ['clients',
+                    'products',
+                    'invoices'],
+       'putters' : ['clients',
+                    'products',
+                    'invoices_payment'],
+       'deleters' : ['clients',
+                     'products',
+                     'invoices',
+                     'invoices_saved',
+                     'invoices_repeated']}
+
 
 class FactuursturenError(Exception):
     """Base class for exceptions in this module."""
@@ -96,79 +171,6 @@ class Client:
 
         self._headers = {'content-type': 'application/json',
                          'accept': 'application/json'}
-        self._getters = ['clients',
-                         'products',
-                         'invoices',
-                         'invoices_saved',
-                         'invoices_repeated',
-                         'profiles',
-                         'balance',
-                         'countrylist',
-                         'taxes']
-        self._single_getters = ['invoices_pdf']
-        self._posters = ['clients',
-                         'products',
-                         'invoices']
-        self._putters = ['clients',
-                         'products',
-                         'invoices_payment']
-        self._deleters = ['clients',
-                          'products',
-                          'invoices',
-                          'invoices_saved',
-                          'invoices_repeated']
-        self._convertablefields = {
-            'clients' : {'clientnr': 'int',
-                         'showcontact': 'bool',
-                         'tax_shifted': 'bool',
-                         'lastinvoice': 'date',
-                         'top': 'int',
-                         'stddiscount': 'int',
-                         'notes_on_invoice': 'bool',
-                         'active': 'bool',
-                         'default_email': 'int',
-                         'timestamp': 'date'},
-            'products': {'id': 'int',
-                         'price': 'float',
-                         'taxes': 'int'},
-            'invoices': {'profile': 'int',
-                         'discount': 'float',
-                         'paymentperiod': 'int',
-                         'collection': 'bool',
-                         'tax': 'float',
-                         'totalintax': 'float',
-                         'sent': 'date',
-                         'uncollectible': 'date',
-                         'lastreminder': 'date',
-                         'open': 'float',
-                         'paiddate': 'float',
-                         'duedate': 'date',
-                         'overwrite_if_exist': 'bool',
-                         'initialdate': 'date',
-                         'finalsenddate': 'date'},
-            'invoices_payment': {'date': 'date'},
-            'invoices_saved': {'id': 'int',
-                               'profile': 'int',
-                               'discount': 'float',
-                               'paymentperiod': 'int',
-                               'totaldiscount': 'float',
-                               'totalintax': 'float',
-                               'clientnr': 'int'},
-            'invoices_repeated': {'id': 'int',
-                                  'profile': 'int',
-                                  'discount': 'float',
-                                  'paymentperiod': 'int',
-                                  'datesaved': 'date',
-                                  'totalintax': 'float',
-                                  'initialdate': 'date',
-                                  'nextsenddate': 'date',
-                                  'finalsenddate': 'date',
-                                  'clientnr': 'int'},
-            'profiles': {'id': 'int'},
-            'countrylist' : {'id': 'int'},
-            'taxes': {'percentage': 'int',
-                      'default': 'bool'}
-        }
 
         # keep a list of which functions can be used to convert the fields
         # from and to a string
@@ -204,15 +206,23 @@ class Client:
             raise FactuursturenConversionError('cannot convert {} to date'.format(string))
 
     def _int2string(self, number):
+        if not isinstance(number, int):
+            raise FactuursturenConversionError('number {} should be of type int'.format(number))
         return str(number)
 
     def _bool2string(self, booleanvalue):
+        if not isinstance(booleanvalue, int):
+            raise FactuursturenConversionError('booleanvalue should be of type bool')
         return str(booleanvalue).lower()
 
     def _float2string(self, number):
-        return str(number)
+         if not (isinstance(number, float) or (isinstance(number, int))):
+            raise FactuursturenConversionError('number {} should be of type float'.format(number))
+         return str(number)
 
     def _date2string(self, date):
+        if not isinstance(date, datetime):
+            raise FactuursturenConversionError('date should be of type datetime')
         return date.strftime("%Y-%m-%d")
 
     def _convertstringfields_in_dict(self, adict, function, direction):
@@ -223,12 +233,12 @@ class Client:
         """
         if direction not in self._convertfunctions:
             raise FactuursturenWrongCall ('_convertstringfields_in_dict called with {}'.format(direction))
-        if function in self._convertablefields:
+        if function in CONVERTABLEFIELDS:
             for key, value in adict.iteritems():
-                if key in self._convertablefields[function]:
+                if key in CONVERTABLEFIELDS[function]:
                     # note: target is something like 'int'. Depending
                     # on conversion direction, this is the source or the target
-                    target = self._convertablefields[function][key]
+                    target = CONVERTABLEFIELDS[function][key]
                     conversion_function = self._convertfunctions[direction][target]
                     adict[key] = conversion_function(value)
         return adict
@@ -323,7 +333,7 @@ class Client:
         """
         fullUrl = self._url + function
         objData_local = copy.deepcopy(objData)
-        if function not in self._posters:
+        if function not in API['posters']:
             raise FactuursturenPostError("{function} not in available POSTable functions".format(function=function))
 
         if isinstance(objData_local, dict):
@@ -350,7 +360,7 @@ class Client:
         """
         fullUrl = self._url + function + '/{objId}'.format(objId=objId)
 
-        if function not in self._putters:
+        if function not in API['putters']:
             raise FactuursturenPostError("{function} not in available PUTable functions".format(function=function))
 
         if isinstance(objData, dict):
@@ -376,7 +386,7 @@ class Client:
         """
         fullUrl = self._url + function + '/{objId}'.format(objId=objId)
 
-        if function not in self._deleters:
+        if function not in API['deleters']:
             raise FactuursturenPostError("{function} not in available DELETEable functions".format(function=function))
 
         response = requests.delete(fullUrl,
@@ -405,7 +415,7 @@ class Client:
 
         fullUrl = self._url + function
         # check function against self.getters and self.singleGetters
-        if function not in self._getters + self._single_getters:
+        if function not in API['getters'] + API['single_getters']:
             raise FactuursturenGetError("{function} not in available GETtable functions".format(function=function))
 
         if objId:
