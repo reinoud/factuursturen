@@ -51,6 +51,20 @@ Typical usage is something like this:
     except factuursturenEmptyResult:
         print "factuur {invoicenr} is empty".format(invoicenr=invoicenr)
 
+Installation:
+=============
+Either:
+
+    * type this command:
+    sudo pip install factuursturen
+
+or:
+    * download source
+    * extract
+    * cd into directory containing setup.py
+    * type this command
+    python setup.py install
+
 
 Changes from the API documentation
 ==================================

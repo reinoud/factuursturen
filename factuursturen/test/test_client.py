@@ -3,19 +3,22 @@ import factuursturen
 import ConfigParser
 from os.path import expanduser
 from datetime import datetime
+import pytest
 
 
 class test_client(TestCase):
     def setUp(self):
+        self.auth_present = None
         try:
             config = ConfigParser.RawConfigParser()
             config.read(['.factuursturen_rc', expanduser('~/.factuursturen_rc')])
             self._apikey = config.get('default', 'apikey')
             self._username = config.get('default', 'username')
+            self.auth_present = True
         except ConfigParser.NoSectionError:
-            self.fail('testsuite needs a file .factuursturen_rc in your homedirectory')
+            self.auth_present = False
         except ConfigParser.NoOptionError:
-            self.fail('.factuursturen_rc needs a [default] section')
+            self.auth_present = False
 
     def test__wrongauth(self):
         apikey = 'foo'
@@ -227,6 +230,8 @@ class test_client(TestCase):
         self.assertEqual(fact.remaining, 1234)
 
     def test_post_get_put_delete(self):
+        if not self.auth_present:
+            pytest.skip("skipping online tests, no ~/.factuursturen_rc found")
         fact = factuursturen.Client()
         test_product = {u'code': u'TEST123',
                         u'name': u'Test produkt via API',

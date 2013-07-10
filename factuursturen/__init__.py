@@ -14,10 +14,8 @@ import copy
 __author__ = 'Reinoud van Leeuwen'
 __copyright__ = "Copyright 2013, Reinoud van Leeuwen"
 __license__ = "BSD"
-__version__ = "0.2"
 __maintainer__ = "Reinoud van Leeuwen"
 __email__ = "reinoud.v@n.leeuwen.net"
-__status__ = "Development"
 
 CONVERTABLEFIELDS = {
     'clients' : {'clientnr': 'int',
