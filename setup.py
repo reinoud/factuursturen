@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from distutils.core import setup
-#from setuptools import setup
+#99from setuptools import setup
 
 PROJECT = 'factuursturen'
 VERSION = '0.2'

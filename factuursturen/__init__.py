@@ -85,6 +85,8 @@ class Client:
             except ConfigParser.NoOptionError:
                 raise FactuursturenNoAuth ('no complete auth found')
         else:
+            if not (apikey and username):
+                raise FactuursturenNoAuth ('no complete auth passed to factuursturen.Client')
             self._apikey = apikey
             self._username = username
 

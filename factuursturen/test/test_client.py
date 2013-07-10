@@ -17,6 +17,13 @@ class test_client(TestCase):
         except ConfigParser.NoOptionError:
             self.fail('.factuursturen_rc needs a [default] section')
 
+    def test__wrongauth(self):
+        apikey = 'foo'
+        try:
+            fact = factuursturen.Client(apikey)
+            self.fail("test should fail when only half auth is passed")
+        except factuursturen.FactuursturenNoAuth:
+            pass
 
     def test__string2bool(self):
         apikey = 'foo'
@@ -35,6 +42,11 @@ class test_client(TestCase):
         test_output = fact._string2float(test_input)
         self.assertEqual(test_output, 123.45)
         self.assertIsInstance(test_output, float)
+        test_input = 'A123.450'
+        try:
+            test_output = fact._string2float(test_input)
+        except factuursturen.FactuursturenConversionError:
+            pass
 
     def test__string2int(self):
         apikey = 'foo'
@@ -44,6 +56,16 @@ class test_client(TestCase):
         test_output = fact._string2int(test_input)
         self.assertEqual(test_output, 123)
         self.assertIsInstance(test_output, int)
+        test_input = '123.24'
+        try:
+            test_output = fact._string2int(test_input)
+        except factuursturen.FactuursturenConversionError:
+            pass
+        test_input = 'A123'
+        try:
+            test_output = fact._string2int(test_input)
+        except factuursturen.FactuursturenConversionError:
+            pass
 
     def test__string2date(self):
         apikey = 'foo'
@@ -53,6 +75,12 @@ class test_client(TestCase):
         test_output = fact._string2date(test_input)
         self.assertEqual(test_output, datetime(2013, 12, 31, 0, 0))
         self.assertIsInstance(test_output, datetime)
+        test_input = "2013-12-32"
+        try:
+            test_output = fact._string2date(test_input)
+        except factuursturen.FactuursturenConversionError:
+            pass
+
 
     def test__int2string(self):
         apikey = 'foo'
@@ -95,9 +123,43 @@ class test_client(TestCase):
         apikey = 'foo'
         username = 'foo'
         fact = factuursturen.Client(apikey, username)
+        test_input = {'clientnr': 123,
+                      'showcontact': True,
+                      'timestamp': datetime(2013, 12, 31, 0, 0)}
+        expected_output = {'clientnr': '123',
+                           'showcontact': 'true',
+                           'timestamp': '2013-12-31'}
+        test_output = fact._convertstringfields_in_dict(test_input, 'clients', 'tostring')
+        self.assertDictEqual(test_output, expected_output)
+        try:
+            test_output = fact._convertstringfields_in_dict(test_input, 'clients', 'wrongargument')
+            self.fail("_convertstringfields_in_dict should throw exception when called wrong")
+        except factuursturen.FactuursturenWrongCall:
+            pass
 
     def test__convertstringfields_in_list_of_dicts(self):
-        pass
+        apikey = 'foo'
+        username = 'foo'
+        fact = factuursturen.Client(apikey, username)
+        test_input = [{'clientnr': 123,
+                      'showcontact': True,
+                      'timestamp': datetime(2013, 12, 31, 0, 0)},
+                      {'clientnr': 124,
+                      'showcontact': False,
+                      'timestamp': datetime(2012, 1, 1, 0, 0)}]
+        expected_output = [{'clientnr': '123',
+                           'showcontact': 'true',
+                           'timestamp': '2013-12-31'},
+                           {'clientnr': '124',
+                           'showcontact': 'false',
+                           'timestamp': '2012-01-01'}]
+        test_output = fact._convertstringfields_in_list_of_dicts(test_input, 'clients', 'tostring')
+        self.assertListEqual(test_output, expected_output)
+        try:
+            test_output = fact._convertstringfields_in_list_of_dicts(test_input, 'clients', 'wrongargument')
+            self.fail("_convertstringfields_in_dict should throw exception when called wrong")
+        except factuursturen.FactuursturenWrongCall:
+            pass
 
     def test__flatten(self):
         apikey = 'foo'
@@ -106,14 +168,11 @@ class test_client(TestCase):
         test_input = {'lines': {'line1': {'amount': 1,
                                           'tax': 21},
                                 'line2': {'amount': 2,
-                                          'tax': 21}
-        }
-        }
+                                          'tax': 21}}}
         expected_output = {'lines[line1][amount]': 1,
                            'lines[line1][tax]': 21,
                            'lines[line2][amount]': 2,
-                           'lines[line2][tax]': 21
-        }
+                           'lines[line2][tax]': 21}
         test_output = fact._flatten(test_input)
         self.assertDictEqual(test_output, expected_output)
 
@@ -168,6 +227,12 @@ class test_client(TestCase):
                         u'taxes': 21}
         added_id = fact.post('products', test_product)
         self.assertTrue(fact.ok)
+
+        try:
+            added_id = fact.post('wrongfunction', test_product)
+            self.fail("calling post with wrong function should raise an exception")
+        except factuursturen.FactuursturenPostError:
+            pass
 
         test_product[u'id'] = int(added_id)
         test_returned_product = fact.get('products', added_id)
