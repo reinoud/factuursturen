@@ -23,7 +23,7 @@ CONVERTABLEFIELDS = {
                  'tax_shifted': 'bool',
                  'lastinvoice': 'date',
                  'top': 'int',
-                 'stddiscount': 'int',
+                 'stddiscount': 'float',
                  'notes_on_invoice': 'bool',
                  'active': 'bool',
                  'default_email': 'int',
@@ -208,6 +208,8 @@ class Client:
             raise FactuursturenConversionError('cannot convert {} to float'.format(string))
 
     def _string2date(self, string):
+        if string == '':
+            return None
         try:
             return datetime.strptime(string, '%Y-%m-%d')
         except ValueError:
@@ -456,12 +458,12 @@ class Client:
             self._remaining = int(response.headers['x-ratelimit-remaining'])
             try:
                 raw_structure = response.json()
-                if isinstance(raw_structure, dict):
-
-                    retval = self._convertstringfields_in_dict(raw_structure[singlefunction], function, 'fromstring')
-                else:
+                if objId is None:
                     retval = self._convertstringfields_in_list_of_dicts(raw_structure, function, 'fromstring')
-            except FactuursturenError:
+                else:
+                    retval = self._convertstringfields_in_dict(raw_structure[singlefunction], function, 'fromstring')
+            except FactuursturenError as error:
+                print error
                 retval = response.content
             return retval
         else:
