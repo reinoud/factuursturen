@@ -1,2 +1,3 @@
 v0.1, 7/7/2013 -- Initial release.
 v0.2  8/7/2013 -- fixed booleans in posting; added ~/.factuursturen_rc option; debugged dox
+v0.4  6/8/2013 -- added example script; escape invoiceID's with slash in name

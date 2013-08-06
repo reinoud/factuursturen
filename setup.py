@@ -5,7 +5,7 @@ from setuptools.command.test import test as TestCommand
 import sys
 
 PROJECT = 'factuursturen'
-VERSION = '0.3'
+VERSION = '0.4'
 URL = 'https://github.com/reinoud/factuursturen'
 AUTHOR = 'Reinoud van Leeuwen'
 AUTHOR_EMAIL = 'reinoud.v@n.leeuwen.net'

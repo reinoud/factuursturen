@@ -10,6 +10,7 @@ import re
 import requests
 from os.path import expanduser
 import copy
+import urllib
 
 __author__ = 'Reinoud van Leeuwen'
 __copyright__ = "Copyright 2013, Reinoud van Leeuwen"
@@ -41,7 +42,7 @@ CONVERTABLEFIELDS = {
                  'uncollectible': 'date',
                  'lastreminder': 'date',
                  'open': 'float',
-                 'paiddate': 'float',
+                 'paiddate': 'date',
                  'duedate': 'date',
                  'overwrite_if_exist': 'bool',
                  'initialdate': 'date',
@@ -130,6 +131,11 @@ class FactuursturenConversionError(FactuursturenError):
 class FactuursturenWrongCall(FactuursturenError):
     pass
 
+class FactuursturenNotFound(FactuursturenError):
+    pass
+
+class FactuursturenNoMoreApiCalls(FactuursturenError):
+    pass
 
 class Client:
     """
@@ -148,7 +154,8 @@ class Client:
         initialize object
 
         When apikey and username are not present, look for INI-style file .factuursturen_rc
-        in current directory and homedirectory to find those values there
+        in current directory and homedirectory to find those values there.
+        when only username is present, try to find apikey in configfilesection where it is defined
 
         :param apikey: APIkey (string) as generated online on the website http://www.factuursturen.nl
         :param username: accountname for the website
@@ -157,16 +164,23 @@ class Client:
         self._url = protocol + '://' + host + apipath + '/' + version + '/'
 
         # try to read auth details from file when not passed
+        config = ConfigParser.RawConfigParser()
+        config.read(['.factuursturen_rc', expanduser('~/.factuursturen_rc')])
         if (not apikey) and (not username):
             try:
-                config = ConfigParser.RawConfigParser()
-                config.read(['.factuursturen_rc', expanduser('~/.factuursturen_rc')])
                 self._apikey = config.get(configsection, 'apikey')
                 self._username = config.get(configsection, 'username')
             except ConfigParser.NoSectionError:
                 raise FactuursturenNoAuth ('key and username not given, nor found in .factuursturen_rc or ~/.factuursturen_rc')
             except ConfigParser.NoOptionError:
                 raise FactuursturenNoAuth ('no complete auth found')
+        elif username and (not apikey):
+            self._username = username
+            for section in config.sections():
+                if config.get(section, 'username') == username:
+                    self._apikey = config.get(section, 'apikey')
+            if not self._apikey:
+                raise FactuursturenNoAuth ('no apikey found for username {}'.format(username))
         else:
             if not (apikey and username):
                 raise FactuursturenNoAuth ('no complete auth passed to factuursturen.Client')
@@ -254,7 +268,11 @@ class Client:
                     # on conversion direction, this is the source or the target
                     target = CONVERTABLEFIELDS[function][key]
                     conversion_function = self._convertfunctions[direction][target]
-                    adict[key] = conversion_function(value)
+                    try:
+                        adict[key] = conversion_function(value)
+                    except FactuursturenConversionError:
+                        print "key = {}, value = {}, direction = {}, target = {}".format(key, value, direction, target)
+                        raise BaseException
         return adict
 
     def _convertstringfields_in_list_of_dicts(self, alist, function, direction):
@@ -332,6 +350,14 @@ class Client:
         adict = self._fixkeynames(adict)
         return adict
 
+    def _escape_characters(self, string):
+        """escape unsafe webcharacters to use in API call
+
+        by default urllib considers '/' as safe, override the default for the second argument by
+        considering nothing safe
+        """
+        return urllib.quote(str(string), safe='')
+
     @property
     def remaining(self):
         """return remaining allowed API calls (for this hour)"""
@@ -378,7 +404,7 @@ class Client:
         :param objId: id of object to be put (usually retrieved from the API)
         :param objData: data to be posted. All required fields should be present, or the API will not accept the changes
         """
-        fullUrl = self._url + function + '/{objId}'.format(objId=objId)
+        fullUrl = self._url + function + '/{objId}'.format(objId=self._escape_characters(objId))
 
         if function not in API['putters']:
             raise FactuursturenPostError("{function} not in available PUTable functions".format(function=function))
@@ -404,7 +430,7 @@ class Client:
         :param function: callabe function from the API ('clients', 'products', etc)
         :param objId: id of object to be put (usually retrieved from the API)
         """
-        fullUrl = self._url + function + '/{objId}'.format(objId=objId)
+        fullUrl = self._url + function + '/{objId}'.format(objId=self._escape_characters(objId))
 
         if function not in API['deleters']:
             raise FactuursturenPostError("{function} not in available DELETEable functions".format(function=function))
@@ -442,7 +468,7 @@ class Client:
             raise FactuursturenGetError("{function} not in available GETtable functions".format(function=function))
 
         if objId:
-            fullUrl += '/{objId}'.format(objId=objId)
+            fullUrl += '/{objId}'.format(objId=self._escape_characters(objId))
 
         response = requests.get(fullUrl,
                                 auth=(self._username, self._apikey),
@@ -454,8 +480,11 @@ class Client:
         # when the functioncall was 'clients/<id>
 
         singlefunction = function[:-1]
+        self._remaining = int(response.headers['x-ratelimit-remaining'])
+
         if response.ok:
-            self._remaining = int(response.headers['x-ratelimit-remaining'])
+            if function == 'invoices_pdf':
+                return response.content
             try:
                 raw_structure = response.json()
                 if objId is None:
@@ -468,4 +497,9 @@ class Client:
             return retval
         else:
             # TODO: more checking
-            raise FactuursturenEmptyResult (response.content)
+            if response.status_code == 404:
+                raise FactuursturenNotFound (response.content)
+            elif self._remaining == 0:
+                raise FactuursturenNoMoreApiCalls ('limit of API calls reached.')
+            else:
+                raise FactuursturenEmptyResult (response.content)

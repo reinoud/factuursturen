@@ -265,6 +265,8 @@ class test_client(TestCase):
         try:
             test_returned_product = fact.get('products', added_id)
             self.fail('an exception should be raised when trying to get a deleted object')
-        except factuursturen.FactuursturenEmptyResult:
+        except factuursturen.FactuursturenNotFound:
             self.assertFalse(fact.ok)
+        except Exception as error:
+            self.fail('expecting an FactuursturenNotFound exception, got {}'.format(error))
 
