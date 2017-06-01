@@ -11,6 +11,6 @@ node() {
         sh 'python setup.py sdist'
     }
     stage('Archive Artifacts') {
-        sh 'archiveArtifacts artifacts: "dist/*.gz", fingerprint: true '
+        archiveArtifacts artifacts: "dist/*.gz", fingerprint: true
     }
 }
