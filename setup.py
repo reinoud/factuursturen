@@ -35,6 +35,6 @@ setup(
     cmdclass = {'test': PyTest},
     license=open('LICENSE').read(),
     description=DESC,
-    long_description=open('README.txt').read(),
+    long_description=open('README.md').read(),
     install_requires = ['requests'],
 )

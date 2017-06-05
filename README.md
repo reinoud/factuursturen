@@ -1,6 +1,4 @@
-====
-factuursturen
-====
+# factuursturen
 
 The factuursturen package is a client for the dutch webservice www.factuursturen.nl API.
 
@@ -13,8 +11,8 @@ To be able to use the API, you will need an API key. You can get one with these 
 API documentation can be found at http://www.factuursturen.nl/docs/api_v0_beta.pdf (or there might be a newer version
 present at the moment you read this)
 
-Synopsis
-========
+## Synopsis
+
 Typical usage is something like this:
 
     #!/usr/bin/env python
@@ -51,8 +49,8 @@ Typical usage is something like this:
     except factuursturenEmptyResult:
         print "factuur {invoicenr} is empty".format(invoicenr=invoicenr)
 
-Installation:
-=============
+## Installation:
+
 Either:
 
     * type this command:
@@ -66,18 +64,18 @@ or:
     python setup.py install
 
 
-Changes from the API documentation
-==================================
+## Changes from the API documentation
+
 This client is pythonic, so some things are translated:
 - booleans are returned as true booleans (not as strings with 'true')
 - nested dictionaries can be used in posting (will be flattened automatically)
 - returned dicts are the same structure as a dict that can be used for posting
 
-Examples
-========
+## Examples
 
-Initialisation
---------------
+
+### Initialisation
+
 You can either pass username and apikey when instantiating an object:
 
     import factuursturen
@@ -97,8 +95,8 @@ or create a file named .factuursturen_rc in the current directory or your home d
     fact = factuursturen.Client()
 
 
-create a product
-----------------
+### create a product
+
 
     import factuursturen
     fact = factuursturen.Client()
@@ -111,8 +109,8 @@ create a product
     except factuursturen.FactuursturenWrongPostvalue as errormessage:
         print "oops! {errormessage}".format(errormessage=errormessage)
 
-create a client
----------------
+### create a client
+
 
     client = {'contact' : 'John Doe',
               'showcontact' : True,
@@ -145,5 +143,5 @@ create a client
     except factuursturen.FactuursturenError as errormessage:
         print "oops! {errormessage}".format(errormessage=errormessage)
 
-send an invoice to a client
----------------------------
+### send an invoice to a client
+
